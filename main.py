@@ -217,6 +217,7 @@ def health():
 
 @app.post("/orchestrate", response_model=OrchestratorResponse)
 def orchestrate(req: OrchestratorRequest, x_orch_secret: Optional[str] = None):
+    return {"received_secret": x_orch_secret}
     # Optional shared secret gate (recommended for public endpoints)
     if REQUIRE_SECRET:
         # Accept either header param or env-based
