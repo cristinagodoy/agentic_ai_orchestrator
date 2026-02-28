@@ -5,7 +5,6 @@ from typing import Literal, List, Optional, Dict, Any
 from fastapi import FastAPI, HTTPException, Header
 
 import requests
-from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 from dotenv import load_dotenv
 
@@ -204,7 +203,27 @@ def call_openai_orchestrator(meta: Dict[str, str]) -> Dict[str, Any]:
 
     return extract_json(out_text)
 
+def _safe_label(s: str, max_len: int = 40) -> str:
+    s = re.sub(r"[\r\n\t]", " ", s)
+    s = re.sub(r'["`\[\]{}<>]', "", s)
+    s = re.sub(r"[^a-zA-Z0-9 _\-\(\):/]", "", s)
+    s = re.sub(r"\s+", " ", s).strip()
+    return s[:max_len]
 
+def build_safe_mermaid(payload: dict) -> str:
+    meta = payload.get("meta", {})
+    obj = _safe_label(str(meta.get("policy_objective", "")))
+    interop = _safe_label(str(meta.get("interoperability_level", "")))
+    event = _safe_label(str(meta.get("event", "none")))
+
+    # Mermaid minimalista e estável (sem textos longos/alertas)
+    return f"""flowchart LR
+A["PolicyOpsAgent\\nobjective: {obj}"] --> B["InteropAgent\\ninterop: {interop}"]
+B --> C["CyberAgent"]
+C --> D["AccountabilityAgent"]
+D --> E["HumanOversightAgent"]
+F(("event: {event}")) -.-> B
+"""
 # -----------------------------
 # FastAPI app
 # -----------------------------
@@ -221,25 +240,24 @@ def orchestrate(
     req: OrchestratorRequest,
     x_orch_secret: Optional[str] = Header(default=None, alias="X-Orch-Secret")
 ):
-    # Optional shared secret gate (recommended for public endpoints)
+    # Secret gate
     if REQUIRE_SECRET:
         secret = x_orch_secret or ""
         if secret != ORCHESTRATOR_SHARED_SECRET:
             raise HTTPException(status_code=401, detail="Unauthorized")
 
-    meta_dict = req.meta.model_dump()
-    result = call_openai_orchestrator(meta_dict)
-
-    validated = OrchestratorResponse(**result)
-    return validated.model_dump()
-
     try:
         meta_dict = req.meta.model_dump()
         result = call_openai_orchestrator(meta_dict)
 
-        # Light structural validation with Pydantic (will raise if wrong)
+        # Validate schema
         validated = OrchestratorResponse(**result)
-        return validated.model_dump()
+        payload = validated.model_dump()
+
+        # Force a SAFE mermaid diagram (prevents Mermaid syntax errors)
+        payload["mermaid"] = build_safe_mermaid(payload)
+
+        return payload
 
     except HTTPException:
         raise
