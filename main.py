@@ -2,6 +2,7 @@ import os
 import json
 import re
 from typing import Literal, List, Optional, Dict, Any
+from fastapi import FastAPI, HTTPException, Header
 
 import requests
 from fastapi import FastAPI, HTTPException
@@ -216,14 +217,21 @@ def health():
 
 
 @app.post("/orchestrate", response_model=OrchestratorResponse)
-def orchestrate(req: OrchestratorRequest, x_orch_secret: Optional[str] = None):
-    return {"received_secret": x_orch_secret}
+def orchestrate(
+    req: OrchestratorRequest,
+    x_orch_secret: Optional[str] = Header(default=None, alias="X-Orch-Secret")
+):
     # Optional shared secret gate (recommended for public endpoints)
     if REQUIRE_SECRET:
-        # Accept either header param or env-based
         secret = x_orch_secret or ""
         if secret != ORCHESTRATOR_SHARED_SECRET:
             raise HTTPException(status_code=401, detail="Unauthorized")
+
+    meta_dict = req.meta.model_dump()
+    result = call_openai_orchestrator(meta_dict)
+
+    validated = OrchestratorResponse(**result)
+    return validated.model_dump()
 
     try:
         meta_dict = req.meta.model_dump()
