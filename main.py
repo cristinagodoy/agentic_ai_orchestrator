@@ -13,6 +13,9 @@ load_dotenv()
 # -----------------------------
 # Config
 # -----------------------------
+@app.post("/debug-meta")
+def debug_meta(req: OrchestratorRequest):
+    return {"received_meta": req.meta.model_dump()}
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "").strip()
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4.1-mini").strip()  # escolha um modelo adequado
 ORCHESTRATOR_SHARED_SECRET = os.getenv("ORCHESTRATOR_SHARED_SECRET", "").strip()
