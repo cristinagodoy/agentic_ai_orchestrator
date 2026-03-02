@@ -249,6 +249,8 @@ def orchestrate(
     try:
         meta_dict = req.meta.model_dump()
         result = call_openai_orchestrator(meta_dict)
+        # --- FIX: enforce meta consistency (do not trust model on meta) ---
+        result["meta"] = meta_dict
 
         # Validate schema
         validated = OrchestratorResponse(**result)
